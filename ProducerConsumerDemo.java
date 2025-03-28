@@ -1,99 +1,120 @@
 import java.util.Scanner;
 
-class SharedMemory {
-    private final int buffer_size = 5;
-    private final char[] buffer = new char[buffer_size];
-    private int in = 0;
-    private int out = 0;
-    private boolean isEmpty = true;
-    private boolean isFull = false;
-    
-    public synchronized void produce(char ch) {
-        while (isFull) {
-            try {
-                Thread.sleep(1000); // Sleep instead of wait when buffer is full
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        buffer[in] = ch;
-        in = (in + 1) % buffer_size;
-        isEmpty = false;
-        isFull = in == out;
-        notify(); // Notify consumer
-    }
-    
-    public synchronized char consume() {
-        while (isEmpty) {
-            try {
-                Thread.sleep(1000); // Sleep instead of wait when buffer is empty
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        char ch = buffer[out];
-        out = (out + 1) % buffer_size;
-        isFull = false;
-        isEmpty = in == out;
-        notify(); // Notify producer
-        return ch;
-    }
-}
-
-class Producer extends Thread {
-    private final SharedMemory sharedMemory;
-    
-    public Producer(SharedMemory sharedMemory) {
-        this.sharedMemory = sharedMemory;
-    }
-    
-    @Override
-    public void run() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("Enter a message: ");
-        String message = scanner.nextLine();
-        
-        try {
-            for (char ch : message.toCharArray()) {
-                sharedMemory.produce(ch);
-                Thread.sleep(500); // Simulate production time
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            scanner.close(); // Close scanner after reading input
-        }
-    }
-}
-
-class Consumer extends Thread {
-    private final SharedMemory sharedMemory;
-    
-    public Consumer(SharedMemory sharedMemory) {
-        this.sharedMemory = sharedMemory;
-    }
-    
-    @Override
-    public void run() {
-        try {
-            while (true) {
-                char ch = sharedMemory.consume();
-                System.out.print(ch);
-                Thread.sleep(1000); // Simulate consumption delay
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-}
-
 public class ProducerConsumerDemo {
     public static void main(String[] args) {
-        SharedMemory sharedMemory = new SharedMemory();
-        Producer producer = new Producer(sharedMemory);
-        Consumer consumer = new Consumer(sharedMemory);
-        
-        producer.start();
+        Buffer sharedBuffer = new Buffer();
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Producer-Consumer Simulation");
+        System.out.print("Enter a message: ");
+        String inputMessage = scanner.nextLine();
+
+        ProducerThread producer = new ProducerThread(sharedBuffer, inputMessage);
+        ConsumerThread consumer = new ConsumerThread(sharedBuffer);
+
+        System.out.println("Initializing threads...");
         consumer.start();
+        producer.start();
+
+        try {
+            producer.join();
+            consumer.join();
+            System.out.println("Process completed successfully.");
+        } catch (InterruptedException e) {
+            System.err.println("Thread interruption occurred.");
+        }
+
+        scanner.close();
+    }
+}
+
+class Buffer {
+    private final int capacity = 5;
+    private final char[] storage = new char[capacity];
+    private int writeIndex = 0;
+    private int readIndex = 0;
+    private boolean completed = false;
+
+    public synchronized boolean isBufferFull() {
+        return (writeIndex + 1) % capacity == readIndex;
+    }
+
+    public synchronized boolean isBufferEmpty() {
+        return writeIndex == readIndex;
+    }
+
+    public synchronized void insert(char ch) {
+        storage[writeIndex] = ch;
+        writeIndex = (writeIndex + 1) % capacity;
+    }
+
+    public synchronized char retrieve() {
+        char ch = storage[readIndex];
+        readIndex = (readIndex + 1) % capacity;
+        return ch;
+    }
+
+    public void markComplete() {
+        completed = true;
+    }
+
+    public boolean isProcessingDone() {
+        return completed && isBufferEmpty();
+    }
+}
+
+class ProducerThread extends Thread {
+    private final Buffer buffer;
+    private final String message;
+
+    public ProducerThread(Buffer buffer, String message) {
+        this.buffer = buffer;
+        this.message = message;
+    }
+
+    @Override
+    public void run() {
+        for (char ch : message.toCharArray()) {
+            while (buffer.isBufferFull()) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    System.err.println("Producer interrupted.");
+                }
+            }
+            buffer.insert(ch);
+            System.out.println("Produced: " + ch);
+        }
+        buffer.markComplete();
+        System.out.println("Producer has finished processing.");
+    }
+}
+
+class ConsumerThread extends Thread {
+    private final Buffer buffer;
+
+    public ConsumerThread(Buffer buffer) {
+        this.buffer = buffer;
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            while (buffer.isBufferEmpty()) {
+                if (buffer.isProcessingDone()) {
+                    System.out.println("\nConsumer has finished processing.");
+                    return;
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    System.err.println("Consumer interrupted.");
+                }
+            }
+            char ch = buffer.retrieve();
+            System.out.print(ch);
+            System.out.flush();
+            System.out.println("\nConsumed: " + ch);
+        }
     }
 }
