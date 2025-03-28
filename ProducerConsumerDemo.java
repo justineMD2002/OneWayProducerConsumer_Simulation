@@ -11,7 +11,7 @@ class SharedMemory {
     public synchronized void produce(char ch) {
         while (isFull) {
             try {
-                wait();
+                Thread.sleep(1000); // Sleep instead of wait when buffer is full
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -20,13 +20,13 @@ class SharedMemory {
         in = (in + 1) % buffer_size;
         isEmpty = false;
         isFull = in == out;
-        notify(); 
+        notify(); // Notify consumer
     }
     
     public synchronized char consume() {
         while (isEmpty) {
             try {
-                wait(); 
+                Thread.sleep(1000); // Sleep instead of wait when buffer is empty
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -35,7 +35,7 @@ class SharedMemory {
         out = (out + 1) % buffer_size;
         isFull = false;
         isEmpty = in == out;
-        notify(); 
+        notify(); // Notify producer
         return ch;
     }
 }
@@ -52,15 +52,16 @@ class Producer extends Thread {
         Scanner scanner = new Scanner(System.in);
         System.out.print("Enter a message: ");
         String message = scanner.nextLine();
-        scanner.close();
         
         try {
             for (char ch : message.toCharArray()) {
                 sharedMemory.produce(ch);
-                Thread.sleep(500); 
+                Thread.sleep(500); // Simulate production time
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            scanner.close(); // Close scanner after reading input
         }
     }
 }
@@ -78,7 +79,7 @@ class Consumer extends Thread {
             while (true) {
                 char ch = sharedMemory.consume();
                 System.out.print(ch);
-                Thread.sleep(1000);
+                Thread.sleep(1000); // Simulate consumption delay
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
