@@ -1,3 +1,5 @@
+import java.util.Scanner;
+
 class SharedMemory {
     private final int buffer_size = 5;
     private final char[] buffer = new char[buffer_size];
@@ -9,7 +11,7 @@ class SharedMemory {
     public synchronized void produce(char ch) {
         while (isFull) {
             try {
-                wait(); // Wait if buffer is full
+                wait();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -18,13 +20,13 @@ class SharedMemory {
         in = (in + 1) % buffer_size;
         isEmpty = false;
         isFull = in == out;
-        notify(); // Notify consumer
+        notify(); 
     }
     
     public synchronized char consume() {
         while (isEmpty) {
             try {
-                wait(); // Wait if buffer is empty
+                wait(); 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -33,7 +35,7 @@ class SharedMemory {
         out = (out + 1) % buffer_size;
         isFull = false;
         isEmpty = in == out;
-        notify(); // Notify producer
+        notify(); 
         return ch;
     }
 }
@@ -47,11 +49,15 @@ class Producer extends Thread {
     
     @Override
     public void run() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter a message: ");
+        String message = scanner.nextLine();
+        scanner.close();
+        
         try {
-            String message = "HelloWorld"; // Example input
             for (char ch : message.toCharArray()) {
                 sharedMemory.produce(ch);
-                Thread.sleep(500); // Simulate production time
+                Thread.sleep(500); 
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -72,7 +78,7 @@ class Consumer extends Thread {
             while (true) {
                 char ch = sharedMemory.consume();
                 System.out.print(ch);
-                Thread.sleep(1000); // Simulate consumption delay
+                Thread.sleep(1000);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
